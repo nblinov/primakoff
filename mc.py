@@ -2,7 +2,6 @@ import numpy
 from scipy.special import spherical_jn
 from IPython.display import clear_output
 import time
-from scipy import integrate
 from multiprocessing import Pool
 from tqdm import tqdm
 from functools import partial
@@ -37,9 +36,19 @@ def tsai_form_factor(q2, A, Z):
     aval = 111.0/(0.0005111*numpy.power(Z,1./3.))
     apval = 773.0/(0.0005111*numpy.power(Z,2./3.))
     dval = 0.164/numpy.power(A,2./3.)
-
+    
     return (1./Z) * ((Z**2*(aval**2*t/(1+aval**2*t))**2*(1/(1+t/dval))**2)+Z*(apval**2*t/(1+apval**2*t))**2*((1+t*inelastic1)/(1+t*inelastic2)**4))**0.5
-
+    
+def form_factor_sq_over_tsq(q2, A, Z):
+    t = q2
+    inelastic1 = 1.9276
+    inelastic2 = 1.40845
+    aval = 111.0/(0.0005111*numpy.power(Z,1./3.))
+    apval = 773.0/(0.0005111*numpy.power(Z,2./3.))
+    dval = 0.164/numpy.power(A,2./3.)
+    
+    return (1./Z**2) * ((Z**2*(aval**2/(1+aval**2*t))**2*(1/(1+t/dval))**2)+Z*(apval**2/(1+apval**2*t))**2*((1+t*inelastic1)/(1+t*inelastic2)**4))
+    
 def form_factor(q2, A, Z):
     #return helm_form_factor(q2, A, Z)
     return tsai_form_factor(q2, A, Z)
@@ -203,9 +212,15 @@ def t_distribution(t, ma, Mn, A, Z, Egamma):
     """
 
     s = s_term(Mn,Egamma)
+    """
     F = form_factor(abs(t), A, Z)
+    F2_over_t2 = (F**2)/(t**2)
+    """
+    F2_over_t2 = form_factor_sq_over_tsq(abs(t), A, Z)
 
-    dsigmadt = 1/(s-Mn**2)**2 * (F**2)/(t**2) * (ma**2 *t *(Mn**2 + s) - ma**4 * Mn**2 - t*((Mn**2-s)**2 + s*t))
+    #dsigmadt = 1/(s-Mn**2)**2 * F2_over_t2 * (ma**2 *t *(Mn**2 + s) - ma**4 * Mn**2 - t*((Mn**2-s)**2 + s*t))
+    t1, t0 = t_bounds(ma, Mn, Egamma)
+    dsigmadt = 1/(s-Mn**2)**2 * F2_over_t2 * s * (t0 - t) * (t - t1)
     return dsigmadt
 
 def s_term(Mn,Egamma):
@@ -232,7 +247,8 @@ def t_bounds(ma, Mn, Egamma):
 
     s = s_term(Mn,Egamma)
     pgcm = (s-Mn**2) / (2*numpy.sqrt(s))
-    pacm = numpy.sqrt( ((s + ma**2 - Mn**2)/(2*numpy.sqrt(s)))**2 - ma**2)
+    rad = numpy.maximum(0.,((s + ma**2 - Mn**2)/(2*numpy.sqrt(s)))**2 - ma**2)
+    pacm = numpy.sqrt( rad )
     t0 = ma**4/(4*s) - (pgcm - pacm)**2
     t1 = ma**4/(4*s) - (pgcm + pacm)**2
     return t1, t0
